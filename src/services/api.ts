@@ -438,6 +438,29 @@ export const api = {
     return response.data;
   },
 
+  // Admin: requests whose price quote is validated and are in the matching stage.
+  getMatchingRequests: async (): Promise<ParentRequest[]> => {
+    const response = await apiClient.get("/matching-requests");
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  // Admin: propose 3-5 babysitter candidates to a family (emails the parent a pick link).
+  proposeCandidates: async (data: {
+    parent_request_id: number;
+    choices: Array<{
+      babysitter_first_name: string;
+      babysitter_last_name?: string;
+      babysitter_email?: string;
+      babysitter_phone?: string;
+      babysitter_address?: string;
+      babysitter_pic?: string;
+      bb_bs_id?: number | string;
+    }>;
+  }): Promise<{ status: boolean; message: string }> => {
+    const response = await apiClient.post("/propose-candidates", data);
+    return response.data;
+  },
+
   updateBabysitterChoice: async (
     choiceId: number,
     data: BabysitterChoicePayload,
@@ -567,6 +590,28 @@ export const api = {
     const response = await apiClient.post("/confirm-invoice-payment", {
       payment_intent_id: paymentIntentId,
       invoice_id: invoiceId,
+    });
+    return response.data;
+  },
+
+  // Manual (non-card) payment for contract signing: bank transfer or CESU.
+  // The user uploads a proof of payment file; the backend records it, marks the
+  // contract paid/signed, and returns { status }. Mirrors the main site's
+  // POST /payment-proof field names (fileUpload, payment_method, amount) but is
+  // keyed by contract_id and authenticated via the Bearer token interceptor.
+  submitPaymentProof: async (
+    contractId: number,
+    paymentMethod: "Bank Transfer" | "CESU",
+    amount: number,
+    file: File,
+  ): Promise<any> => {
+    const form = new FormData();
+    form.append("contract_id", String(contractId));
+    form.append("payment_method", paymentMethod);
+    form.append("amount", String(amount));
+    form.append("fileUpload", file);
+    const response = await apiClient.post("/payment-proof", form, {
+      headers: { "Content-Type": "multipart/form-data" },
     });
     return response.data;
   },

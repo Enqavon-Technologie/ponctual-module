@@ -183,8 +183,8 @@ export const en = {
       backToStart: "Go to Dashboard",
     },
     confirmSelection: {
-      title: "Confirm my request",
-      subtitle: "I wish to confirm my childcare request\nI accept the terms and conditions of Bloom Buddies",
+      title: "Confirm Request",
+      subtitle: "Are you sure you want to confirm this price quote and be matched with babysitters?",
       hireTitle: "Confirm my request",
       hireSubtitle: "I wish to confirm my childcare request\nI accept the terms and conditions of Bloom Buddies",
       confirm: "Confirm",

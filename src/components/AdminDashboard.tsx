@@ -81,6 +81,7 @@ const formatDateDMY = (dateStr?: string | null) => {
 };
 import { KanbanBoard, RequestDetailsModal, transformToKanbanRequest, KanbanRequest } from './KanbanBoard';
 import { AddNewActiveRequestModal } from './AddNewActiveRequestModal';
+import { ProposeCandidatesModal } from './ProposeCandidatesModal';
 import { Pagination } from './Pagination';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { StatusBadge } from './StatusBadge';
@@ -93,18 +94,21 @@ type AdminPage = 'dashboard' | 'new-requests' | 'completed-requests' | 'ongoing-
 
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
-    const [activePage, setActivePage] = useState<AdminPage>('dashboard');
+    const [activePage, setActivePage] = useState<AdminPage>('new-requests');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [viewingUserId, setViewingUserId] = useState<number | null>(null);
     const [viewingChoiceId, setViewingChoiceId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedUserIdForInvoices, setSelectedUserIdForInvoices] = useState<number | null>(null);
+    // New Request modal is opened from the top-nav CTA; refresh key re-fetches the pending list after an add.
+    const [isAddRequestModalOpen, setIsAddRequestModalOpen] = useState(false);
+    const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
 
     const menuItems = [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'requests', label: 'All Requests', icon: ClipboardList },
-        { id: 'new-requests', label: 'New Request', icon: Plus },
-        { id: 'active-requests', label: 'Active Requests', icon: Activity },
+        // { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        // { id: 'requests', label: 'All Requests', icon: ClipboardList },
+        { id: 'new-requests', label: 'Pending Requests', icon: ClipboardList },
+        { id: 'active-requests', label: 'Requests in Matching', icon: Activity },
         { id: 'ongoing-requests', label: 'Ongoing Requests', icon: Clock },
         { id: 'completed-requests', label: 'Completed Request', icon: CheckCircle2 },
         { id: 'signed-contracts', label: 'Signed Contract', icon: ShieldCheck },
@@ -206,22 +210,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             <Menu size={20} />
                         </button>
                         <h2 className="text-xl font-bold text-slate-900 capitalize hidden sm:block">
-                            {viewingUserId ? 'User Details' : viewingChoiceId ? 'Contract Details' : activePage.replace('-', ' ')}
+                            {viewingUserId ? 'User Details' : viewingChoiceId ? 'Contract Details' : (menuItems.find(m => m.id === activePage)?.label || activePage.replace('-', ' '))}
                         </h2>
                     </div>
 
                     <div className="flex items-center gap-6">
-                        {/* Search Bar */}
-                        <div className="relative hidden md:block">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                            <input
-                                type="text"
-                                placeholder="Search anything..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-10 pr-4 py-2 bg-slate-100 border-transparent focus:bg-white focus:border-slate-200 rounded-xl text-sm outline-none transition-all w-64"
-                            />
-                        </div>
+                        {/* New Request CTA */}
+                        <button
+                            onClick={() => setIsAddRequestModalOpen(true)}
+                            className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-200/60 flex items-center gap-2"
+                        >
+                            <Plus size={18} />
+                            <span className="hidden sm:inline">New Request</span>
+                        </button>
+
 
                         <div className="flex items-center gap-3">
                             <button className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all relative">
@@ -244,6 +246,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     </div>
                 </header>
 
+                {/* New Request modal — triggered from the top-nav CTA, available on any page */}
+                <AnimatePresence>
+                    {isAddRequestModalOpen && (
+                        <AddNewActiveRequestModal
+                            onClose={() => setIsAddRequestModalOpen(false)}
+                            onSuccess={() => setRequestsRefreshKey(k => k + 1)}
+                        />
+                    )}
+                </AnimatePresence>
+
                 {/* Dynamic Content Area */}
                 <main className="p-6 md:p-8">
                     <AnimatePresence mode="wait">
@@ -255,7 +267,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             transition={{ duration: 0.2 }}
                         >
                             {activePage === 'dashboard' && <DashboardView />}
-                            {activePage === 'new-requests' && <NewRequestsView searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
+                            {activePage === 'new-requests' && <NewRequestsView key={requestsRefreshKey} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
                             {activePage === 'completed-requests' && <CompletedRequestsView searchQuery={searchQuery} onSearchChange={setSearchQuery} onViewInvoices={(userId) => { setSelectedUserIdForInvoices(userId); setActivePage('invoices'); }} />}
                             {activePage === 'ongoing-requests' && <OngoingRequestsView searchQuery={searchQuery} onSearchChange={setSearchQuery} onViewInvoices={(userId) => { setSelectedUserIdForInvoices(userId); setActivePage('invoices'); }} />}
                             {activePage === 'requests' && <RequestsView searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
@@ -368,7 +380,6 @@ const NewRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: string;
     const [requests, setRequests] = useState<import('../services/api').ParentRequest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingRequest, setEditingRequest] = useState<KanbanRequest | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
@@ -462,6 +473,9 @@ const NewRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: string;
     }, []);
 
     const filteredRequests = requests.filter(req => {
+        // Pending = the parent has NOT validated step 3 (the price quote).
+        // quote_status === 1 means the quote was accepted, so exclude those.
+        if (req.quote_status === 1) return false;
         const parentName = `${req.user?.first_name} ${req.user?.last_name}`.toLowerCase();
         const searchLower = searchQuery.toLowerCase();
         return parentName.includes(searchLower) ||
@@ -477,7 +491,7 @@ const NewRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: string;
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <h3 className="text-lg font-bold text-slate-900">New Requests List</h3>
+                <h3 className="text-lg font-bold text-slate-900">Pending Requests List</h3>
                 <div className="flex items-center gap-4">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -492,14 +506,6 @@ const NewRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: string;
                             className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none w-64 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all shadow-sm"
                         />
                     </div>
-
-                    <button
-                        onClick={() => setIsAddModalOpen(true)}
-                        className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 flex items-center gap-2"
-                    >
-                        <Plus size={18} />
-                        Add New Request
-                    </button>
 
                     <button
                         onClick={fetchNewRequests}
@@ -570,39 +576,8 @@ const NewRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: string;
                                         <button
                                             onClick={() => {
                                                 const link = `${window.location.origin}/price/${req.id}`;
-                                                const lastName = req.user?.last_name || 'Parent';
-                                                const lang = req.user?.user_language || 'en';
-
-                                                let message = '';
-
-                                                if (lang === 'fr') {
-                                                    message = `Cher/Chère ${lastName},
-
-Un nouveau devis a été préparé pour votre demande. Vous pouvez maintenant consulter les détails et décider si vous souhaitez poursuivre.
-
-Voir le devis
-${link}
-
-Veuillez cliquer sur le lien ci-dessus pour consulter et accepter votre devis.
-
-Cordialement,
-Team Bloom`;
-                                                } else {
-                                                    message = `Dear ${lastName},
-
-A new price quote has been prepared for your request. You can now review the details and decide whether to proceed.
-
-Review Price Quote
-${link}
-
-Please visit the above link to accept your price quote.
-
-Best regards,
-Team Bloom`;
-                                                }
-
-                                                navigator.clipboard.writeText(message);
-                                                toast.success('Message copied!');
+                                                navigator.clipboard.writeText(link);
+                                                toast.success('Link copied!');
                                             }}
                                             className="flex items-center justify-center gap-1.5 px-3 py-1.5 mx-auto bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg hover:bg-emerald-600 hover:text-white transition-all font-bold text-xs shadow-sm shadow-emerald-200/50"
                                             title="Copy Price Quote Message"
@@ -613,13 +588,6 @@ Team Bloom`;
                                     </td>
                                     <td className="px-6 py-4 text-right align-top">
                                         <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleEdit(req)}
-                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                                title="Edit"
-                                            >
-                                                <Edit2 size={18} />
-                                            </button>
                                             <button
                                                 onClick={() => handleDeleteClick(req.id)}
                                                 className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
@@ -643,12 +611,6 @@ Team Bloom`;
             </div>
 
             <AnimatePresence>
-                {isAddModalOpen && (
-                    <AddNewActiveRequestModal
-                        onClose={() => setIsAddModalOpen(false)}
-                        onSuccess={fetchNewRequests}
-                    />
-                )}
                 {isDeleteModalOpen && (
                     <DeleteConfirmationModal
                         isOpen={isDeleteModalOpen}
@@ -1571,16 +1533,17 @@ const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: stri
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [requestToDelete, setRequestToDelete] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [proposingFor, setProposingFor] = useState<import('../services/api').ParentRequest | null>(null);
 
     const fetchActiveRequests = async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const result = await api.getActiveRequests();
+            const result = await api.getMatchingRequests();
             setRequests(result);
             setCurrentPage(1); // Reset to first page on refresh
         } catch (err: any) {
-            setError('Failed to load active requests. Please try again.');
+            setError('Failed to load requests in matching. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -1690,7 +1653,7 @@ const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: stri
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <h3 className="text-lg font-bold text-slate-900">Active Requests List</h3>
+                <h3 className="text-lg font-bold text-slate-900">Requests in Matching List</h3>
                 <div className="flex items-center gap-4">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -1720,12 +1683,11 @@ const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: stri
                     <table className="w-full text-left table-fixed min-w-[1000px]">
                         <thead>
                             <tr className="bg-slate-50/50 border-b border-slate-200">
-                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[6%]">ID</th>
-                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[26%]">Parent Details</th>
-                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[26%]">Sitter Choices</th>
-                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center w-[12%]">Contract</th>
-                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[20%]">Schedules</th>
-                                <th className="px-4 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-widest w-[10%]">Actions</th>
+                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[7%]">ID</th>
+                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[34%]">Family</th>
+                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[16%]">Quote Validated</th>
+                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[21%]">Matching Status</th>
+                                <th className="px-4 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-widest w-[22%]">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
@@ -1770,89 +1732,30 @@ const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: stri
                                         </div>
                                     </td>
 
-                                    <td className="px-4 py-4 align-top">
-                                        <ActiveRequestChoicesCell
-                                            choices={req.choices ?? []}
-                                            requestId={req.id}
-                                            onShowMore={(choices, reqId) => setViewingSitterChoices({ 
-                                                choices, 
-                                                reqId,
-                                                parentName: req.user?.last_name,
-                                                userLanguage: req.user?.user_language
-                                            })}
-                                            onRefresh={fetchActiveRequests}
-                                        />
+                                    <td className="px-4 py-4 align-top text-sm text-slate-500">
+                                        {formatDateDMY(req.created_at)}
                                     </td>
-                                    <td className="px-4 py-4 text-center align-top">
+                                    <td className="px-4 py-4 align-top">
                                         {(() => {
-                                            const hiredSitter = req.choices?.find(c => Number(c.final_choice) === 1);
-                                            if (!hiredSitter) return <span className="text-slate-400 text-[10px] italic mt-2 block">No sitter accepted</span>;
-
-                                            return (
-                                                <button
-                                                    onClick={() => {
-                                                        const link = `${window.location.origin}/contract/${hiredSitter.id}`;
-                                                        const lang = req.user?.user_language || 'en';
-                                                        const name = req.user?.last_name || 'Client';
-
-                                                        let message = '';
-                                                        if (lang === 'fr') {
-                                                            message = `Cher/Chère ${name},
-
-Un nouveau contrat a été préparé pour votre demande. Vous pouvez maintenant le consulter et le valider.
-
-Voir le contrat
-${link}
-
-Veuillez cliquer sur le lien ci-dessus pour consulter et signer votre contrat.
-
-Cordialement,
-Team Bloom`;
-                                                        } else {
-                                                            message = `Dear ${name},
-
-A new contract has been prepared for your request. You can now review and validate it.
-
-View Contract
-${link}
-
-Please click the link above to review and sign your contract.
-
-Best regards,
-Team Bloom`;
-                                                        }
-
-                                                        navigator.clipboard.writeText(message);
-                                                        toast.success('Contract message copied!');
-                                                    }}
-                                                    className="p-2.5 bg-brand-accent/5 text-brand-accent rounded-xl hover:bg-brand-accent hover:text-white transition-all border border-brand-accent/10 shadow-sm mx-auto flex items-center justify-center mt-1"
-                                                    title="Copy Contract Message"
-                                                >
-                                                    <LinkIcon size={18} />
-                                                </button>
-                                            );
+                                            const choices = req.choices ?? [];
+                                            const selectedCount = choices.filter((c: any) => c.status === 'selected').length;
+                                            if (choices.length === 0) {
+                                                return <span className="inline-block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100">Awaiting proposal</span>;
+                                            }
+                                            if (selectedCount > 0) {
+                                                return <span className="inline-block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">{selectedCount} selected by family</span>;
+                                            }
+                                            return <span className="inline-block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">Proposed — awaiting family</span>;
                                         })()}
                                     </td>
-                                    <td className="px-4 py-4 align-top">
-                                        <ActiveRequestSchedulesCell schedules={req.schedules ?? []} />
-                                    </td>
                                     <td className="px-4 py-4 text-right align-top">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleEdit(req)}
-                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                                title="Edit"
-                                            >
-                                                <Edit2 size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteClick(req.id)}
-                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                                title="Delete"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
+                                        <button
+                                            onClick={() => setProposingFor(req)}
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-accent text-white text-xs font-bold rounded-xl hover:bg-[#66B2AC] transition-all shadow-sm shadow-brand-accent/20"
+                                        >
+                                            <Users size={14} />
+                                            {(req.choices?.length ?? 0) > 0 ? 'Re-propose' : 'Propose candidates'}
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -1866,6 +1769,16 @@ Team Bloom`;
                     onPageChange={setCurrentPage}
                 />
             </div>
+
+            <AnimatePresence>
+                {proposingFor && (
+                    <ProposeCandidatesModal
+                        request={proposingFor}
+                        onClose={() => setProposingFor(null)}
+                        onProposed={fetchActiveRequests}
+                    />
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {viewingSitterChoices && (

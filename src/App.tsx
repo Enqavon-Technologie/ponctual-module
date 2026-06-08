@@ -462,12 +462,18 @@ export default function App() {
               numChildren: response.data?.children?.length || 1,
               childDOBs: response.data?.children?.map(c => c.child_dob) || ['']
             }));
-          } else {
+          } else if (response.code === 401) {
+            // Only clear the session on a definitive 401 (unauthorized / expired token).
+            // Transient failures (network, CORS, 5xx, slow cold backend on first load)
+            // must NOT delete the token — otherwise a single hiccup on page load logs
+            // the user out permanently. Mirrors ProfilePage's restore policy.
             api.removeToken();
             setIsLoggedIn(false);
             setUser(null);
           }
         } catch (error) {
+          // getUser handles its own errors, but keep the token on any unexpected throw
+          // so the session can recover on the next load instead of forcing re-login.
           console.error('Auth check failed:', error);
         }
       }
@@ -1233,32 +1239,10 @@ export default function App() {
         }
       }
     } else if (currentStep === 3) {
-      let idToUse = parentRequestId;
-
-      // Fallback: If parentRequestId is null, try to find the latest request from the user object
-      if (!idToUse && isLoggedIn && user?.parent_requests?.length) {
-        const sortedRequests = [...user.parent_requests].sort((a, b) => b.id - a.id);
-        idToUse = sortedRequests[0].id;
-      }
-
-      if (idToUse) {
-        try {
-          setIsRegistering(true);
-          await api.acceptPriceQuote(idToUse);
-          setCurrentStep(4);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        } catch (error) {
-          console.error('Failed to accept price quote:', error);
-          // Fallback to next step even if API fails to avoid blocking user
-          setCurrentStep(4);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        } finally {
-          setIsRegistering(false);
-        }
-      } else {
-        setCurrentStep(4);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+      // Final step: open the confirmation modal. On confirm we accept the price
+      // quote and send the user to their dashboard — matching is handled
+      // afterward by the admin / back-office.
+      setIsConfirmModalOpen(true);
     } else if (currentStep === 4) {
       if (validateStep4()) {
         setIsConfirmModalOpen(true);
@@ -1277,58 +1261,31 @@ export default function App() {
         idToUse = sortedRequests[0].id;
       }
 
+      // Confirm the request by accepting the price quote. Matching to
+      // babysitters is handled afterward by the admin / back-office.
       if (idToUse) {
-       const res = await api.createBabysitterChoices({
-          parent_request_id: idToUse,
-          choices: selectedCandidates.map((c, index) => {
-            const sitter = localizedSitters.find(s => s.id === c.sitterId);
-            const info = c.sitterInfo;
-
-            // Ensure time is in HH:mm format
-            let formattedTime = c.interview.time;
-            if (formattedTime) {
-              const parts = formattedTime.split(':');
-              if (parts.length >= 2) {
-                formattedTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
-              }
-            }
-
-            return {
-              choice_order: index + 1,
-              bb_bs_id: c.sitterId,
-              babysitter_first_name: sitter?.name || info?.name || "Babysitter",
-              babysitter_last_name: sitter?.lastName || info?.lastName || "Unknown",
-              babysitter_email: sitter?.email || info?.email || `${sitter?.name?.toLowerCase() || 'babysitter'}@example.com`,
-              babysitter_phone: sitter?.phone || info?.phone || "00000000000",
-              babysitter_address: sitter?.address || info?.address || "Not Provided",
-              babysitter_pic: sitter?.profile_pic || info?.profile_pic,
-              interview_date: c.interview.skipped ? undefined : c.interview.date,
-              interview_time: c.interview.skipped ? undefined : formattedTime
-            };
-          })
-        });
-        if (res.status) {
-          
-          setTimeout(() => {
-            window.location.href = "/";
-          }, 1000);
-        }
+        await api.acceptPriceQuote(idToUse);
       }
-
-      setIsConfirmModalProcessing(false);
-      setIsConfirmModalOpen(false);
-      setIsSubmitted(true);
 
       try {
         if (typeof window !== 'undefined') window.sessionStorage.removeItem('selectedCandidates');
       } catch (e) {
         // ignore
       }
-    } catch (error) {
-      console.error('Failed to save babysitter choices:', error);
-      setErrors({ candidates: 'Failed to save your selection. Please try again.' });
+
       setIsConfirmModalProcessing(false);
-      // We keep the modal open so the user can see the error
+      setIsConfirmModalOpen(false);
+      setIsSubmitted(true);
+
+      // Lead the user into their personal dashboard.
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 800);
+    } catch (error) {
+      console.error('Failed to confirm price quote:', error);
+      setErrors({ candidates: language === 'fr' ? 'Échec de la confirmation. Veuillez réessayer.' : 'Failed to confirm your request. Please try again.' });
+      setIsConfirmModalProcessing(false);
+      // Keep the modal open so the user can see the error.
     }
   };
 
@@ -1784,15 +1741,15 @@ export default function App() {
               {/* Progress Indicator */}
               <div className="w-full max-w-2xl mb-8">
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t.common.step} {currentStep} {t.common.of} 4</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t.common.step} {currentStep} {t.common.of} 3</span>
                   <span className="text-xs font-bold text-brand-accent uppercase tracking-wider">
-                    {currentStep === 1 ? t.steps.familyInfo : currentStep === 2 ? t.steps.scheduleQuote : currentStep === 3 ? t.step3.title : t.steps.matching}
+                    {currentStep === 1 ? t.steps.familyInfo : currentStep === 2 ? t.steps.scheduleQuote : t.step3.title}
                   </span>
                 </div>
                 <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${(currentStep / 4) * 100}%` }}
+                    animate={{ width: `${(currentStep / 3) * 100}%` }}
                     className="h-full bg-brand-accent transition-all duration-500"
                   />
                 </div>
@@ -2462,7 +2419,7 @@ export default function App() {
                             ) : (
                               <>
                                 <ChevronRight size={22} />
-                                {t.common.continuetomatching}
+                                {t.modals.confirmSelection.title}
                               </>
                             )}
                           </motion.button>

@@ -30,7 +30,9 @@ import {
   Star,
   Check,
   ShieldCheck,
-  Lock
+  Lock,
+  Landmark,
+  Upload
 } from 'lucide-react';
 import { api, ContractResponse } from '../services/api';
 import { SlideToAccept } from './SlideToAccept';
@@ -62,6 +64,10 @@ const ContractViewInner: React.FC<ContractViewProps> = ({ userName, onBack, onAc
     const [isAccepted, setIsAccepted] = useState(false);
     const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    // Payment method selection for the signing modal: card (Stripe), bank transfer, or CESU.
+    const [paymentMethod, setPaymentMethod] = useState<'card' | 'bank' | 'cesu'>('card');
+    const [proofFile, setProofFile] = useState<File | null>(null);
+    const proofInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (autoShowCongrats) {
@@ -175,6 +181,57 @@ const ContractViewInner: React.FC<ContractViewProps> = ({ userName, onBack, onAc
         } catch (err: any) {
             setIsPaymentProcessing(false);
             setPaymentError(err.message || "Payment failed");
+        }
+    };
+
+    // Company payment details shown for manual (non-card) methods.
+    const RIB = {
+        iban: 'FR76 2823 3000 0150 9805 3550 539',
+        bic: 'REVOFRP2',
+        accountName: 'ENQAVON SERVICE',
+    };
+    const CESU_NAN = '1761420';
+
+    const handleProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0] || null;
+        setProofFile(file);
+        setPaymentError(null);
+    };
+
+    // Sign the contract via bank transfer / CESU: upload the proof of payment,
+    // and on success mark the contract signed (same end state as the card flow).
+    const handleManualSignAndPay = async () => {
+        if (!contractData) return;
+        if (!proofFile) {
+            setPaymentError(language === 'fr'
+                ? "Veuillez d'abord téléverser votre preuve de paiement."
+                : "Please upload your proof of payment first.");
+            return;
+        }
+
+        setIsPaymentProcessing(true);
+        setPaymentError(null);
+
+        try {
+            const method = paymentMethod === 'bank' ? 'Bank Transfer' : 'CESU';
+            const response = await api.submitPaymentProof(
+                contractData.contract_id,
+                method,
+                getFirstMonthAmount(),
+                proofFile,
+            );
+
+            if (response.status) {
+                setIsPaymentProcessing(false);
+                setIsAccepted(true);
+            } else {
+                throw new Error(response.message || (language === 'fr'
+                    ? "Erreur lors de l'envoi de la preuve de paiement"
+                    : "Error submitting proof of payment"));
+            }
+        } catch (err: any) {
+            setIsPaymentProcessing(false);
+            setPaymentError(err.message || (language === 'fr' ? "L'envoi a échoué" : "Upload failed"));
         }
     };
 
@@ -728,19 +785,19 @@ const ContractViewInner: React.FC<ContractViewProps> = ({ userName, onBack, onAc
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            className="bg-white rounded-[40px] p-10 w-full max-m-md shadow-2xl relative z-10 overflow-hidden"
-                            style={{ maxWidth: '448px' }}
+                            className="bg-white rounded-[40px] p-6 sm:p-8 w-full shadow-2xl relative z-10 overflow-x-hidden overflow-y-auto max-h-[92vh] no-scrollbar"
+                            style={{ maxWidth: '620px' }}
                         >
                             <div className="absolute top-0 right-0 w-32 h-32 bg-brand-blue/5 rounded-full -mr-16 -mt-16 blur-2xl" />
 
                             {!isAccepted ? (
                                 <>
-                                    <div className="text-center mb-6">
-                                        <div className="w-16 h-16 bg-brand-blue/10 rounded-[28px] flex items-center justify-center text-brand-blue mx-auto mb-4 shadow-inner relative">
+                                    <div className="text-center mb-4">
+                                        <div className="w-12 h-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue mx-auto mb-2.5 shadow-inner relative">
                                             {isPaymentProcessing ? (
-                                                <Loader2 size={32} className="animate-spin text-brand-blue" />
+                                                <Loader2 size={24} className="animate-spin text-brand-blue" />
                                             ) : (
-                                                <ShieldCheck size={32} />
+                                                <ShieldCheck size={24} />
                                             )}
                                         </div>
                                         <h3 className="text-xl font-display font-bold text-slate-900 mb-2 uppercase tracking-tight">
@@ -754,62 +811,156 @@ const ContractViewInner: React.FC<ContractViewProps> = ({ userName, onBack, onAc
                                         </p>
                                     </div>
 
-                                    {/* Invoice Section */}
-                                    {contractData && contractData.format2 && (
-                                        <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-100 flex justify-between items-center relative z-10">
-                                            <div>
-                                                <p className="text-xs text-slate-500 font-medium pb-1">{language === 'fr' ? 'Montant du 1er mois' : 'First month amount'}</p>
-                                                <p className="text-sm font-bold text-slate-800 capitalize">{Object.keys(contractData.format2)[0]}</p>
+                                    {/* Payment body: amount + method on the left, inputs on the right */}
+                                    <div className="grid sm:grid-cols-2 gap-5 mb-5 relative z-10 items-start">
+                                      {/* LEFT: amount + payment method */}
+                                      <div className="space-y-4">
+                                        {/* Invoice Section */}
+                                        {contractData && contractData.format2 && (
+                                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex justify-between items-center">
+                                                <div>
+                                                    <p className="text-xs text-slate-500 font-medium pb-1">{language === 'fr' ? 'Montant du 1er mois' : 'First month amount'}</p>
+                                                    <p className="text-sm font-bold text-slate-800 capitalize">{Object.keys(contractData.format2)[0]}</p>
+                                                </div>
+                                                <div className="text-xl font-display font-bold text-brand-blue">
+                                                    {formatCurrency(getFirstMonthAmount())}
+                                                </div>
                                             </div>
-                                            <div className="text-xl font-display font-bold text-brand-blue">
-                                                {formatCurrency(getFirstMonthAmount())}
+                                        )}
+
+                                        {/* Payment method selector */}
+                                        <div className={`space-y-2 transition-opacity duration-300 ${isPaymentProcessing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                                            {([
+                                                { key: 'card', label: language === 'fr' ? 'Carte de crédit' : 'Credit card', icon: <CreditCard size={16} /> },
+                                                { key: 'bank', label: language === 'fr' ? 'Virement bancaire' : 'Bank transfer', icon: <Landmark size={16} /> },
+                                                { key: 'cesu', label: 'CESU', icon: <FileText size={16} /> },
+                                            ] as const).map(opt => (
+                                                <button
+                                                    key={opt.key}
+                                                    type="button"
+                                                    onClick={() => { setPaymentMethod(opt.key); setPaymentError(null); }}
+                                                    className={`w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl border text-xs font-bold transition-all ${paymentMethod === opt.key ? 'border-brand-blue bg-brand-blue/5 text-brand-blue shadow-sm' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                                                >
+                                                    {opt.icon}
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                      </div>
+
+                                      {/* RIGHT: method-specific inputs */}
+                                      <div className="min-w-0">
+                                    {/* Card fields */}
+                                    {paymentMethod === 'card' && (
+                                        <div className={`space-y-4 transition-opacity duration-300 ${isPaymentProcessing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] uppercase font-bold text-slate-400">{paymentT.cardNumber}</label>
+                                                <div className="relative">
+                                                    <div className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus-within:border-brand-blue focus-within:ring-2 focus-within:ring-brand-blue/20 bg-white transition-all">
+                                                        <CardNumberElement options={{ style: { base: { fontSize: '14px', color: '#334155', '::placeholder': { color: '#94a3b8' } }, invalid: { color: '#ef4444' } }, disabled: isPaymentProcessing }} />
+                                                    </div>
+                                                    <CreditCard size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] uppercase font-bold text-slate-400">{paymentT.expiry}</label>
+                                                    <div className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus-within:border-brand-blue focus-within:ring-2 focus-within:ring-brand-blue/20 bg-white transition-all">
+                                                        <CardExpiryElement options={{ style: { base: { fontSize: '14px', color: '#334155', '::placeholder': { color: '#94a3b8' } }, invalid: { color: '#ef4444' } }, disabled: isPaymentProcessing }} />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] uppercase font-bold text-slate-400">{paymentT.cvc}</label>
+                                                    <div className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus-within:border-brand-blue focus-within:ring-2 focus-within:ring-brand-blue/20 bg-white transition-all">
+                                                        <CardCvcElement options={{ style: { base: { fontSize: '14px', color: '#334155', '::placeholder': { color: '#94a3b8' } }, invalid: { color: '#ef4444' } }, disabled: isPaymentProcessing }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 flex flex-col items-center gap-2">
+                                                <div className="flex items-center gap-2 text-[10px] text-slate-400 justify-center">
+                                                    <Lock size={12} />
+                                                    {paymentT.securityNote}
+                                                </div>
+                                                {paymentError && (
+                                                    <div className="text-xs text-red-500 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 flex items-center gap-2 text-center max-w-sm mt-2">
+                                                        <AlertCircle size={14} className="shrink-0" />
+                                                        <span>{paymentError}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Payment Fields */}
-                                    <div className={`space-y-4 mb-6 transition-opacity duration-300 relative z-10 ${isPaymentProcessing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] uppercase font-bold text-slate-400">{paymentT.cardNumber}</label>
-                                            <div className="relative">
-                                                <div className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus-within:border-brand-blue focus-within:ring-2 focus-within:ring-brand-blue/20 bg-white transition-all">
-                                                    <CardNumberElement options={{ style: { base: { fontSize: '14px', color: '#334155', '::placeholder': { color: '#94a3b8' } }, invalid: { color: '#ef4444' } }, disabled: isPaymentProcessing }} />
+                                    {/* Bank transfer / CESU details + proof of payment upload */}
+                                    {paymentMethod !== 'card' && (
+                                        <div className={`space-y-3 transition-opacity duration-300 ${isPaymentProcessing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                                            {paymentMethod === 'bank' ? (
+                                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2.5">
+                                                    <p className="text-[10px] uppercase font-bold text-slate-400">{language === 'fr' ? 'Coordonnées bancaires' : 'Bank details'}</p>
+                                                    {[
+                                                        { label: 'IBAN', value: RIB.iban },
+                                                        { label: 'BIC', value: RIB.bic },
+                                                        { label: language === 'fr' ? 'Titulaire' : 'Account', value: RIB.accountName },
+                                                    ].map(row => (
+                                                        <div key={row.label} className="flex justify-between items-center gap-3">
+                                                            <span className="text-[10px] uppercase font-bold text-slate-400 shrink-0">{row.label}</span>
+                                                            <span className="text-xs font-bold text-slate-700 text-right break-all">{row.value}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                                <CreditCard size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
-                                            </div>
-                                        </div>
+                                            ) : (
+                                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2.5">
+                                                    <p className="text-[10px] uppercase font-bold text-slate-400">{language === 'fr' ? "Numéro d'affiliation national (CESU)" : 'CESU affiliation number'}</p>
+                                                    <div className="flex justify-between items-center gap-3">
+                                                        <span className="text-[10px] uppercase font-bold text-slate-400 shrink-0">NAN</span>
+                                                        <span className="text-xs font-bold text-slate-700 text-right break-all">{CESU_NAN}</span>
+                                                    </div>
+                                                </div>
+                                            )}
 
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] uppercase font-bold text-slate-400">{paymentT.expiry}</label>
-                                                <div className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus-within:border-brand-blue focus-within:ring-2 focus-within:ring-brand-blue/20 bg-white transition-all">
-                                                    <CardExpiryElement options={{ style: { base: { fontSize: '14px', color: '#334155', '::placeholder': { color: '#94a3b8' } }, invalid: { color: '#ef4444' } }, disabled: isPaymentProcessing }} />
-                                                </div>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] uppercase font-bold text-slate-400">{paymentT.cvc}</label>
-                                                <div className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus-within:border-brand-blue focus-within:ring-2 focus-within:ring-brand-blue/20 bg-white transition-all">
-                                                    <CardCvcElement options={{ style: { base: { fontSize: '14px', color: '#334155', '::placeholder': { color: '#94a3b8' } }, invalid: { color: '#ef4444' } }, disabled: isPaymentProcessing }} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="mt-2 flex flex-col items-center gap-2">
-                                            <div className="flex items-center gap-2 text-[10px] text-slate-400 justify-center">
-                                                <Lock size={12} />
-                                                {paymentT.securityNote}
-                                            </div>
+                                            <p className="text-[11px] text-slate-500 leading-relaxed px-1">
+                                                {language === 'fr'
+                                                    ? 'Effectuez votre paiement, puis téléversez votre preuve de paiement pour signer le contrat.'
+                                                    : 'Make your payment, then upload your proof of payment to sign the contract.'}
+                                            </p>
+
+                                            <input ref={proofInputRef} type="file" accept="image/*,application/pdf" onChange={handleProofChange} className="hidden" disabled={isPaymentProcessing} />
+                                            <button
+                                                type="button"
+                                                onClick={() => proofInputRef.current?.click()}
+                                                disabled={isPaymentProcessing}
+                                                className={`w-full rounded-xl border-2 border-dashed px-4 py-4 flex flex-col items-center justify-center gap-1.5 transition-colors ${proofFile ? 'border-green-300 bg-green-50' : 'border-slate-200 hover:border-brand-blue/40 bg-white'}`}
+                                            >
+                                                {proofFile ? (
+                                                    <>
+                                                        <CheckCircle2 size={20} className="text-green-500" />
+                                                        <span className="text-xs font-bold text-slate-700 truncate max-w-[220px]">{proofFile.name}</span>
+                                                        <span className="text-[10px] text-slate-400">{language === 'fr' ? 'Cliquer pour changer' : 'Click to change'}</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Upload size={20} className="text-slate-400" />
+                                                        <span className="text-xs font-bold text-slate-500">{language === 'fr' ? 'Téléverser la preuve de paiement' : 'Upload proof of payment'}</span>
+                                                        <span className="text-[10px] text-slate-400">{language === 'fr' ? 'Image ou PDF' : 'Image or PDF'}</span>
+                                                    </>
+                                                )}
+                                            </button>
+
                                             {paymentError && (
-                                                <div className="text-xs text-red-500 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 flex items-center gap-2 text-center max-w-sm mt-2">
+                                                <div className="text-xs text-red-500 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 flex items-center gap-2">
                                                     <AlertCircle size={14} className="shrink-0" />
                                                     <span>{paymentError}</span>
                                                 </div>
                                             )}
                                         </div>
+                                    )}
+                                      </div>
                                     </div>
 
                                     <div className={`px-2 transition-opacity duration-300 relative z-10 ${isPaymentProcessing ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                                         <SlideToAccept
-                                            onAccept={handleSlideToAcceptAndPay}
+                                            onAccept={paymentMethod === 'card' ? handleSlideToAcceptAndPay : handleManualSignAndPay}
                                             text={(t.actions as any).signingSlider || (language === 'fr' ? 'Glisser pour signer' : 'Slide to sign')}
                                             reset={!!paymentError && !isPaymentProcessing}
                                         />
@@ -818,7 +969,7 @@ const ContractViewInner: React.FC<ContractViewProps> = ({ userName, onBack, onAc
                                     <button
                                         onClick={() => setShowAcceptModal(false)}
                                         disabled={isPaymentProcessing}
-                                        className={`w-full mt-6 text-slate-400 font-bold text-sm tracking-wide transition-colors relative z-10 ${isPaymentProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:text-slate-600'}`}
+                                        className={`w-full mt-4 text-slate-400 font-bold text-sm tracking-wide transition-colors relative z-10 ${isPaymentProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:text-slate-600'}`}
                                     >
                                         {paymentT.cancel || (language === 'fr' ? 'Annuler' : 'Cancel')}
                                     </button>
@@ -836,9 +987,13 @@ const ContractViewInner: React.FC<ContractViewProps> = ({ userName, onBack, onAc
                                         {t.actions.success}
                                     </h3>
                                     <p className="text-slate-500 mb-10 font-medium text-sm leading-relaxed px-4">
-                                        {language === 'fr'
-                                            ? "Votre contrat a été signé électroniquement avec succès et le paiement a été traité."
-                                            : "Your contract has been successfully signed electronically and payment processed."
+                                        {paymentMethod === 'card'
+                                            ? (language === 'fr'
+                                                ? "Votre contrat a été signé électroniquement avec succès et le paiement a été traité."
+                                                : "Your contract has been successfully signed electronically and payment processed.")
+                                            : (language === 'fr'
+                                                ? "Votre contrat a été signé électroniquement avec succès. Votre preuve de paiement a bien été reçue et sera vérifiée par notre équipe."
+                                                : "Your contract has been successfully signed electronically. Your proof of payment has been received and will be verified by our team.")
                                         }
                                     </p>
                                     <button
