@@ -275,7 +275,7 @@ export const BabysitterContractView: React.FC<BabysitterContractViewProps> = ({ 
                             <p className="font-bold text-xs uppercase tracking-wide text-slate-500">Le Salarié</p>
                             <p className="text-xs text-slate-400 italic">« Lu et approuvé »</p>
                             {signed
-                                ? <p className="mt-3 font-[cursive] text-brand-accent text-lg">{data.babysitter_signature_name || signatureName}</p>
+                                ? <p className="mt-3 font-[cursive] text-brand-accent text-lg">{data.signature_name || signatureName}</p>
                                 : <p className="mt-3 text-slate-300">……………………</p>}
                         </div>
                     </div>

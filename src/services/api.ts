@@ -456,6 +456,12 @@ export const api = {
     return Array.isArray(response.data) ? response.data : [];
   },
 
+  // Completed: babysitter has signed. Each item carries total_hours + total_revenue.
+  getCompletedSignedRequests: async (): Promise<any[]> => {
+    const response = await apiClient.get("/completed-contract-requests");
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
   // Mark the babysitter's contract as generated for a given choice.
   generateBabysitterContract: async (choiceId: number): Promise<any> => {
     const response = await apiClient.post(`/generate-babysitter-contract/${choiceId}`);

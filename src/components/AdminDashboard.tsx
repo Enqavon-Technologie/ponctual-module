@@ -85,6 +85,8 @@ import { ProposeCandidatesModal } from './ProposeCandidatesModal';
 import { MatchPicksContent } from './MatchPicksContent';
 import { buildRequestDetailsText } from '../utils/requestDetails';
 import { interviewRoomUrl } from '../utils/interview';
+import { generateContractPdf } from '../utils/contractPdfGenerator';
+import { generateBabysitterContractPdf } from '../utils/babysitterContractPdf';
 import { Pagination } from './Pagination';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { StatusBadge } from './StatusBadge';
@@ -93,7 +95,7 @@ interface AdminDashboardProps {
     onLogout: () => void;
 }
 
-type AdminPage = 'dashboard' | 'new-requests' | 'completed-requests' | 'ongoing-requests' | 'requests' | 'active-requests' | 'pending-signature' | 'pending-babysitter-signature' | 'signed-contracts' | 'interviews' | 'invoices' | 'contracts' | 'attestations' | 'users';
+type AdminPage = 'dashboard' | 'new-requests' | 'completed-requests' | 'completed' | 'ongoing-requests' | 'requests' | 'active-requests' | 'pending-signature' | 'pending-babysitter-signature' | 'signed-contracts' | 'interviews' | 'invoices' | 'contracts' | 'attestations' | 'users';
 
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
@@ -114,13 +116,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         { id: 'active-requests', label: 'Requests in Matching', icon: Activity },
         { id: 'pending-signature', label: 'Pending Signature & Payment', icon: CreditCard },
         { id: 'pending-babysitter-signature', label: 'Pending Babysitter Signature', icon: FileText },
+        { id: 'completed', label: 'Completed Requests', icon: CheckCircle2 },
         // { id: 'ongoing-requests', label: 'Ongoing Requests', icon: Clock },
         // { id: 'completed-requests', label: 'Completed Request', icon: CheckCircle2 },
         // { id: 'signed-contracts', label: 'Signed Contract', icon: ShieldCheck },
         { id: 'invoices', label: 'Invoices', icon: Receipt },
         { id: 'contracts', label: 'Contracts', icon: FileText },
         { id: 'attestations', label: 'Attestations Fiscales', icon: History },
-        { id: 'users', label: 'All Users', icon: Users },
+        { id: 'users', label: 'All Parents', icon: Users },
     ];
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -281,6 +284,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             {activePage === 'active-requests' && <ActiveRequestsView searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
                             {activePage === 'pending-signature' && <PendingSignatureView searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
                             {activePage === 'pending-babysitter-signature' && <PendingBabysitterSignatureView searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
+                            {activePage === 'completed' && <CompletedSignedRequestsView searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
                             {activePage === 'signed-contracts' && <SignedContractsView searchQuery={searchQuery} onSearchChange={setSearchQuery} onViewInvoices={(userId) => { setSelectedUserIdForInvoices(userId); setActivePage('invoices'); }} />}
                             {activePage === 'interviews' && <InterviewsView searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
                             {activePage === 'invoices' && <InvoicesView searchQuery={searchQuery} onSearchChange={setSearchQuery} userId={selectedUserIdForInvoices} onClearUserFilter={() => setSelectedUserIdForInvoices(null)} />}
@@ -1734,6 +1738,156 @@ const PendingBabysitterSignatureView = ({ searchQuery, onSearchChange }: { searc
                                                     <button onClick={() => copyLink((finalChoice as any).id)}
                                                         className="inline-flex items-center gap-1.5 px-3 py-2 bg-brand-accent/10 text-brand-accent text-xs font-bold rounded-xl hover:bg-brand-accent hover:text-white transition-all">
                                                         <LinkIcon size={14} /> Copy contract link
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                <Pagination totalItems={filtered.length} itemsPerPage={itemsPerPage} currentPage={currentPage} onPageChange={setCurrentPage} />
+            </div>
+        </div>
+    );
+};
+
+// Fully completed requests (babysitter has signed): totals + downloadable
+// parent and babysitter contract PDFs.
+const CompletedSignedRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: string; onSearchChange: (val: string) => void }) => {
+    const { t: trans, language } = useLanguage();
+    const [requests, setRequests] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [downloading, setDownloading] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
+    const fetchData = async () => {
+        setIsLoading(true); setError(null);
+        try {
+            const result = await api.getCompletedSignedRequests();
+            setRequests(result); setCurrentPage(1);
+        } catch {
+            setError('Failed to load. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    React.useEffect(() => { fetchData(); }, []);
+
+    const filtered = requests.filter(req => {
+        const name = `${req.user?.first_name} ${req.user?.last_name}`.toLowerCase();
+        const q = searchQuery.toLowerCase();
+        return name.includes(q) || req.id.toString().includes(q) || req.parent_address?.toLowerCase().includes(q);
+    });
+    const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    const totalHours = filtered.reduce((s, r) => s + Number(r.total_hours || 0), 0);
+    const totalRevenue = filtered.reduce((s, r) => s + Number(r.total_revenue || 0), 0);
+    const eur = (n: number) => `${Number(n || 0).toFixed(2)} €`;
+
+    const downloadParent = async (choiceId: number) => {
+        setDownloading(`p-${choiceId}`);
+        try {
+            const data = await api.getContract(choiceId);
+            await generateContractPdf(data, language, trans, choiceId);
+        } catch {
+            toast.error(language === 'fr' ? 'Échec du téléchargement.' : 'Download failed.');
+        } finally { setDownloading(null); }
+    };
+
+    const downloadBabysitter = async (choiceId: number) => {
+        setDownloading(`b-${choiceId}`);
+        try {
+            const data = await api.getBabysitterContract(choiceId);
+            await generateBabysitterContractPdf(data, choiceId);
+        } catch {
+            toast.error(language === 'fr' ? 'Échec du téléchargement.' : 'Download failed.');
+        } finally { setDownloading(null); }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h3 className="text-lg font-bold text-slate-900">Completed Requests</h3>
+                <div className="flex items-center gap-4">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input type="text" placeholder="Filter requests..." value={searchQuery}
+                            onChange={(e) => { onSearchChange(e.target.value); setCurrentPage(1); }}
+                            className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none w-64 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all shadow-sm" />
+                    </div>
+                    <button onClick={fetchData} className="p-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-50 transition-colors shadow-sm" title="Refresh">
+                        <History size={18} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Summary cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Completed</p>
+                    <p className="text-2xl font-bold text-slate-900 mt-1">{filtered.length}</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Total hours of care</p>
+                    <p className="text-2xl font-bold text-slate-900 mt-1">{totalHours.toFixed(2)} h</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Total revenue generated</p>
+                    <p className="text-2xl font-bold text-brand-accent mt-1">{eur(totalRevenue)}</p>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto min-h-[300px]">
+                    <table className="w-full text-left min-w-[900px]">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-200">
+                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[7%]">ID</th>
+                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[24%]">Family</th>
+                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[20%]">Babysitter</th>
+                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[11%]">Hours</th>
+                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[12%]">Revenue</th>
+                                <th className="px-4 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-widest w-[26%]">Contracts</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {isLoading && (<tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400"><div className="flex items-center justify-center gap-3"><Loader2 className="animate-spin" size={20} /><span className="text-sm font-medium">Loading…</span></div></td></tr>)}
+                            {!isLoading && error && (<tr><td colSpan={6} className="px-6 py-12 text-center text-red-500"><div className="flex items-center justify-center gap-2"><AlertCircle size={18} /><span className="text-sm font-medium">{error}</span></div></td></tr>)}
+                            {!isLoading && !error && filtered.length === 0 && (<tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">No completed requests yet.</td></tr>)}
+                            {!isLoading && !error && paginated.map(req => {
+                                const finalChoice = (req.choices ?? []).find((c: any) => Number(c.final_choice) === 1);
+                                const choiceId = finalChoice?.id;
+                                return (
+                                    <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="px-4 py-4 font-bold text-slate-900 align-top">#{req.id}</td>
+                                        <td className="px-4 py-4 align-top">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-slate-800">{req.user?.first_name} {req.user?.last_name}</span>
+                                                <span className="text-xs text-slate-400">{req.user?.email}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 align-top">
+                                            {finalChoice ? (
+                                                <span className="font-semibold text-slate-700 text-sm">{finalChoice.babysitter_first_name} {finalChoice.babysitter_last_name}</span>
+                                            ) : <span className="text-slate-400 text-xs">—</span>}
+                                        </td>
+                                        <td className="px-4 py-4 align-top font-semibold text-slate-700">{Number(req.total_hours || 0).toFixed(2)} h</td>
+                                        <td className="px-4 py-4 align-top font-bold text-brand-accent">{eur(req.total_revenue)}</td>
+                                        <td className="px-4 py-4 text-right align-top">
+                                            {choiceId && (
+                                                <div className="inline-flex items-center gap-2">
+                                                    <button onClick={() => downloadParent(choiceId)} disabled={downloading === `p-${choiceId}`}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all disabled:opacity-60">
+                                                        {downloading === `p-${choiceId}` ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Parent
+                                                    </button>
+                                                    <button onClick={() => downloadBabysitter(choiceId)} disabled={downloading === `b-${choiceId}`}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-brand-accent/10 text-brand-accent text-xs font-bold rounded-xl hover:bg-brand-accent hover:text-white transition-all disabled:opacity-60">
+                                                        {downloading === `b-${choiceId}` ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Babysitter
                                                     </button>
                                                 </div>
                                             )}
@@ -3371,7 +3525,7 @@ const UsersView = ({ onViewUser, searchQuery, onSearchChange }: { onViewUser: (i
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input
                             type="text"
-                            placeholder="Search users..."
+                            placeholder="Search parents..."
                             value={searchQuery}
                             onChange={(e) => {
                                 onSearchChange(e.target.value);
@@ -3381,7 +3535,7 @@ const UsersView = ({ onViewUser, searchQuery, onSearchChange }: { onViewUser: (i
                         />
                     </div>
                     <div className="text-sm text-slate-400 font-medium">
-                        {filteredUsers.length} Users Total
+                        {filteredUsers.length} Parents Total
                     </div>
                 </div>
                 <div className="overflow-x-auto min-h-[580px]">
