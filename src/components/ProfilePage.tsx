@@ -552,6 +552,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         {/* Babysitter Interviews Section */}
                         {req.choices && req.choices.length > 0 && (
                           <div className="pt-10 border-t border-slate-100">
+                            {req.choices.some((c: any) => c.status === 'proposed') && !req.choices.some((c: any) => c.status === 'selected') && (
+                              <div className="mb-8 p-5 sm:p-6 rounded-[24px] bg-brand-accent/5 border border-brand-accent/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                  <p className="font-display font-bold text-slate-800">{language === 'fr' ? 'Vos candidates sont prêtes !' : 'Your candidates are ready!'}</p>
+                                  <p className="text-sm text-slate-500 leading-snug mt-0.5">{language === 'fr' ? 'Choisissez les babysitters que vous souhaitez rencontrer et planifiez vos entretiens.' : 'Choose the babysitters you’d like to meet and schedule your interviews.'}</p>
+                                </div>
+                                <a href={`/match/${req.id}`} className="shrink-0 inline-flex items-center justify-center gap-1.5 px-5 py-3 bg-brand-accent text-white font-bold rounded-2xl hover:bg-[#66B2AC] transition-all shadow-lg shadow-brand-accent/20 text-sm whitespace-nowrap">
+                                  {language === 'fr' ? 'Choisir mes babysitters' : 'Choose my babysitters'} <ChevronRight size={16} />
+                                </a>
+                              </div>
+                            )}
                             <div className="flex items-start sm:items-center justify-between gap-4 mb-8">
                               <div className="space-y-1 min-w-0">
                                 <h3 className="text-lg font-display font-bold text-slate-800">{t.profilePage.interviews.sectionTitle}</h3>

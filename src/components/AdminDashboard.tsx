@@ -82,6 +82,7 @@ const formatDateDMY = (dateStr?: string | null) => {
 import { KanbanBoard, RequestDetailsModal, transformToKanbanRequest, KanbanRequest } from './KanbanBoard';
 import { AddNewActiveRequestModal } from './AddNewActiveRequestModal';
 import { ProposeCandidatesModal } from './ProposeCandidatesModal';
+import { MatchPicksModal } from './MatchPicksModal';
 import { Pagination } from './Pagination';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { StatusBadge } from './StatusBadge';
@@ -1534,6 +1535,7 @@ const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: stri
     const [requestToDelete, setRequestToDelete] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [proposingFor, setProposingFor] = useState<import('../services/api').ParentRequest | null>(null);
+    const [viewingPicks, setViewingPicks] = useState<import('../services/api').ParentRequest | null>(null);
 
     const fetchActiveRequests = async () => {
         setIsLoading(true);
@@ -1749,13 +1751,25 @@ const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: stri
                                         })()}
                                     </td>
                                     <td className="px-4 py-4 text-right align-top">
-                                        <button
-                                            onClick={() => setProposingFor(req)}
-                                            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-accent text-white text-xs font-bold rounded-xl hover:bg-[#66B2AC] transition-all shadow-sm shadow-brand-accent/20"
-                                        >
-                                            <Users size={14} />
-                                            {(req.choices?.length ?? 0) > 0 ? 'Re-propose' : 'Propose candidates'}
-                                        </button>
+                                        <div className="flex items-center justify-end gap-2">
+                                            {(req.choices?.length ?? 0) > 0 && (
+                                                <button
+                                                    onClick={() => setViewingPicks(req)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all"
+                                                    title="View candidates & interviews"
+                                                >
+                                                    <Eye size={14} />
+                                                    View
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => setProposingFor(req)}
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-brand-accent text-white text-xs font-bold rounded-xl hover:bg-[#66B2AC] transition-all shadow-sm shadow-brand-accent/20"
+                                            >
+                                                <Users size={14} />
+                                                {(req.choices?.length ?? 0) > 0 ? 'Re-propose' : 'Propose candidates'}
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -1776,6 +1790,15 @@ const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: stri
                         request={proposingFor}
                         onClose={() => setProposingFor(null)}
                         onProposed={fetchActiveRequests}
+                    />
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {viewingPicks && (
+                    <MatchPicksModal
+                        request={viewingPicks}
+                        onClose={() => setViewingPicks(null)}
                     />
                 )}
             </AnimatePresence>
