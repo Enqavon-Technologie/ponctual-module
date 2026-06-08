@@ -439,45 +439,49 @@ export default function App() {
     const checkAuth = async () => {
       const initialPath = window.location.pathname;
       const token = api.getToken();
-      if (token) {
-        try {
-          const response = await api.getUser();
-          if (response.status && response.data) {
-            setIsLoggedIn(true);
-            setUser(response.data);
-            if (!initialPath.includes('/contract/') && !initialPath.includes('/price/') && !initialPath.includes('/cmg/') && !initialPath.includes('/match/')) {
-              // Properly route to admin or parent based on user data
-              if (response.data.email?.toLowerCase() === 'ponctuel@bloom-buddies.fr' || response.data.user_role === 1) {
-                setView('admin-dashboard');
-              } else {
-                setView('profile');
-              }
-            }
-            // Pre-fill form data if user is logged in
-            setFormData(prev => ({
-              ...prev,
-              firstName: response.data?.first_name || '',
-              lastName: response.data?.last_name || '',
-              email: response.data?.email || '',
-              telephone: response.data?.user_phone || '',
-              address: response.data?.user_address || '',
-              numChildren: response.data?.children?.length || 1,
-              childDOBs: response.data?.children?.map(c => c.child_dob) || ['']
-            }));
-          } else if (response.code === 401) {
-            // Only clear the session on a definitive 401 (unauthorized / expired token).
-            // Transient failures (network, CORS, 5xx, slow cold backend on first load)
-            // must NOT delete the token — otherwise a single hiccup on page load logs
-            // the user out permanently. Mirrors ProfilePage's restore policy.
-            api.removeToken();
-            setIsLoggedIn(false);
-            setUser(null);
-          }
-        } catch (error) {
-          // getUser handles its own errors, but keep the token on any unexpected throw
-          // so the session can recover on the next load instead of forcing re-login.
-          console.error('Auth check failed:', error);
+      if (!token) return;
+
+      const isDeepLink = ['/contract/', '/price/', '/cmg/', '/match/'].some(p => initialPath.includes(p));
+      const routeForRole = (role: string | null) => {
+        if (isDeepLink) return;
+        setView(role === 'admin' ? 'admin-dashboard' : 'profile');
+      };
+
+      // Optimistically restore the session from the persisted role so a refresh —
+      // or a backend hiccup / expired-token 401 — never bounces a logged-in user
+      // back to the login screen.
+      const cachedRole = localStorage.getItem('auth_role');
+      if (cachedRole) {
+        setIsLoggedIn(true);
+        routeForRole(cachedRole);
+      }
+
+      try {
+        const response = await api.getUser();
+        if (response.status && response.data) {
+          setIsLoggedIn(true);
+          setUser(response.data);
+          const role = (response.data.email?.toLowerCase() === 'ponctuel@bloom-buddies.fr' || response.data.user_role === 1) ? 'admin' : 'parent';
+          localStorage.setItem('auth_role', role);
+          routeForRole(role);
+          // Pre-fill form data if user is logged in
+          setFormData(prev => ({
+            ...prev,
+            firstName: response.data?.first_name || '',
+            lastName: response.data?.last_name || '',
+            email: response.data?.email || '',
+            telephone: response.data?.user_phone || '',
+            address: response.data?.user_address || '',
+            numChildren: response.data?.children?.length || 1,
+            childDOBs: response.data?.children?.map(c => c.child_dob) || ['']
+          }));
         }
+        // We deliberately do NOT log the user out on a 401/failure. As long as a
+        // token is stored we keep the session and let the user log out explicitly.
+        // This keeps logins persistent across refreshes and transient/expired-token
+        // backend responses instead of kicking the user to the login screen.
+      } catch (error) {
+        console.error('Auth check failed:', error);
       }
     };
     checkAuth();
@@ -745,6 +749,8 @@ export default function App() {
 
   const handleLoginSuccess = async (isAdmin?: boolean) => {
     setIsLoggedIn(true);
+    // Persist the role so the session restores instantly on the next load.
+    try { localStorage.setItem('auth_role', isAdmin ? 'admin' : 'parent'); } catch (e) { /* ignore */ }
 
     try {
       const response = await api.getUser();
@@ -908,6 +914,7 @@ export default function App() {
 
   const handleLogout = useCallback(() => {
     api.removeToken();
+    try { localStorage.removeItem('auth_role'); } catch (e) { /* ignore */ }
     setIsLoggedIn(false);
     setUser(null);
     setView('booking');

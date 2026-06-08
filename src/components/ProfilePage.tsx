@@ -110,12 +110,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             onGoToAdmin();
           }
         } else {
-          // Only logout if unauthorized (401)
-          if (response.code === 401) {
-            onLogout();
-          } else {
-            console.error('Fetch user failed with status:', response.code, response.message);
-          }
+          // Do NOT auto-logout on a 401/expired token — keep the session so a
+          // transient or expired-token response doesn't bounce the user to login.
+          // They can log out explicitly via the Logout button.
+          console.error('Fetch user failed with status:', response.code, response.message);
         }
       } catch (error) {
         console.error('Failed to fetch user:', error);
