@@ -488,6 +488,31 @@ export const api = {
     return response.data;
   },
 
+  // Fetch an Agora RTC token for a video-interview room (public, no auth).
+  // `account` is the participant's name, used as their string uid so the other
+  // side sees who joined.
+  getAgoraToken: async (
+    channel: string,
+    account?: string,
+  ): Promise<{ status: boolean; appId: string; channel: string; uid: string | number; token: string; message?: string }> => {
+    const response = await apiClient.get("/agora/token", { params: { channel, account } });
+    return response.data;
+  },
+
+  // Admin: schedule / reschedule a chosen candidate's online video interview.
+  scheduleInterview: async (
+    choiceId: number,
+    interview_date: string,
+    interview_time: string,
+  ): Promise<{ status: boolean; message: string; data?: any }> => {
+    const response = await apiClient.post("/schedule-interview", {
+      choice_id: choiceId,
+      interview_date,
+      interview_time,
+    });
+    return response.data;
+  },
+
   updateBabysitterChoice: async (
     choiceId: number,
     data: BabysitterChoicePayload,

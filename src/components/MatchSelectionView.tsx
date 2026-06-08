@@ -32,7 +32,6 @@ interface Selection {
 }
 
 const PHOTO_BASE = 'https://bloom-buddies.fr/uploads/profile_images/';
-const TIME_SLOTS = ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
 
 export const MatchSelectionView: React.FC<MatchSelectionViewProps> = ({ requestId, onDone }) => {
     const { language, formatDate } = useLanguage();
@@ -90,6 +89,7 @@ export const MatchSelectionView: React.FC<MatchSelectionViewProps> = ({ requestI
     );
 
     const toggleSelect = (c: Candidate) => {
+        const wasSelected = !!selections[c.choice_order]?.selected;
         setSelections(prev => {
             const cur = prev[c.choice_order];
             if (cur?.selected) {
@@ -98,6 +98,11 @@ export const MatchSelectionView: React.FC<MatchSelectionViewProps> = ({ requestI
             }
             return { ...prev, [c.choice_order]: { selected: true, interview_date: null, interview_time: null } };
         });
+        // On newly selecting a candidate, prompt to schedule the interview
+        // (the parent can still skip it via "Pas d'entretien" / close).
+        if (!wasSelected) {
+            setSchedulingFor(c);
+        }
     };
 
     const setInterview = (order: number, date: string | null, time: string | null) => {
@@ -259,7 +264,7 @@ export const MatchSelectionView: React.FC<MatchSelectionViewProps> = ({ requestI
                                                 <div className="flex items-center gap-2 text-xs font-semibold text-brand-accent min-w-0">
                                                     <Video size={14} className="shrink-0" />
                                                     <span className="truncate">
-                                                        {formatDate(sel!.interview_date as string)} · {sel!.interview_time}
+                                                        {formatDate(sel!.interview_date as string)} · {sel!.interview_time} ({fr ? 'heure de Paris' : 'Paris time'})
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-1 shrink-0">
@@ -376,11 +381,18 @@ const InterviewScheduler: React.FC<InterviewSchedulerProps> = ({
                             <Video size={18} />
                         </div>
                         <div>
-                            <h3 className="font-bold text-slate-900 leading-tight">{fr ? 'Planifier un entretien' : 'Schedule an interview'}</h3>
+                            <h3 className="font-bold text-slate-900 leading-tight">{fr ? 'Planifier un entretien vidéo' : 'Schedule a video interview'}</h3>
                             <p className="text-xs text-slate-400">{fr ? 'avec' : 'with'} {candidate.babysitter_first_name}</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18} /></button>
+                </div>
+
+                <div className="px-6 pt-4">
+                    <div className="flex items-start gap-2 text-xs text-brand-accent bg-brand-accent/5 border border-brand-accent/15 rounded-xl px-3 py-2.5 leading-snug">
+                        <Video size={14} className="mt-0.5 shrink-0" />
+                        <span>{fr ? 'Entretien vidéo en ligne — un lien de visioconférence vous sera envoyé.' : 'Online video interview — a video-call link will be sent to you.'}</span>
+                    </div>
                 </div>
 
                 <div className="px-6 py-5 space-y-5">
@@ -400,18 +412,13 @@ const InterviewScheduler: React.FC<InterviewSchedulerProps> = ({
                         <label className="flex items-center gap-1.5 text-[11px] uppercase font-bold text-slate-400 mb-2">
                             <Clock size={13} /> {fr ? 'Heure' : 'Time'}
                         </label>
-                        <div className="grid grid-cols-3 gap-2">
-                            {TIME_SLOTS.map(slot => (
-                                <button
-                                    key={slot}
-                                    type="button"
-                                    onClick={() => setTime(slot)}
-                                    className={`py-2 rounded-xl text-sm font-bold transition-all ${time === slot ? 'bg-brand-accent text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                                >
-                                    {slot}
-                                </button>
-                            ))}
-                        </div>
+                        <input
+                            type="time"
+                            value={time}
+                            onChange={(e) => setTime(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-brand-accent focus:ring-2 focus:ring-brand-accent/20 outline-none text-sm"
+                        />
+                        <p className="mt-2 text-[11px] text-slate-400">{fr ? 'Tous les horaires sont en heure de Paris.' : 'All times are in Paris time.'}</p>
                     </div>
                 </div>
 

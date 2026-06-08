@@ -48,6 +48,7 @@ import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { api, ParentRequest } from '../services/api';
 import { useLanguage } from '../i18n/LanguageContext';
+import { interviewRoomUrl } from '../utils/interview';
 
 declare global {
   interface Window {
@@ -1823,10 +1824,10 @@ export const RequestDetailsModal = ({
                             </div>
 
                             <div className="md:col-span-2 pt-2 border-t border-slate-50">
-                              {choice.zoom_meeting_link ? (
+                              {choice.interview_date && choice.id ? (
                                 <div className="flex flex-col sm:flex-row gap-2">
                                   <a
-                                    href={choice.zoom_meeting_link}
+                                    href={interviewRoomUrl(choice.id)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-brand-blue/10 text-brand-blue font-bold rounded-xl hover:bg-brand-blue hover:text-white transition-all text-xs"

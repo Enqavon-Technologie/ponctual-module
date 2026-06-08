@@ -49,8 +49,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       } else {
         setError(response.message || 'User not found');
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -87,8 +87,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       } else {
         setError(response.message || 'Invalid OTP');
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -108,8 +108,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       } else {
         setError(response.message || 'Login failed. Please check your credentials.');
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }

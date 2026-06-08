@@ -82,7 +82,9 @@ const formatDateDMY = (dateStr?: string | null) => {
 import { KanbanBoard, RequestDetailsModal, transformToKanbanRequest, KanbanRequest } from './KanbanBoard';
 import { AddNewActiveRequestModal } from './AddNewActiveRequestModal';
 import { ProposeCandidatesModal } from './ProposeCandidatesModal';
-import { MatchPicksModal } from './MatchPicksModal';
+import { MatchPicksContent } from './MatchPicksContent';
+import { buildRequestDetailsText } from '../utils/requestDetails';
+import { interviewRoomUrl } from '../utils/interview';
 import { Pagination } from './Pagination';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { StatusBadge } from './StatusBadge';
@@ -111,9 +113,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         { id: 'new-requests', label: 'Pending Requests', icon: ClipboardList },
         { id: 'active-requests', label: 'Requests in Matching', icon: Activity },
         { id: 'pending-signature', label: 'Pending Signature & Payment', icon: CreditCard },
-        { id: 'ongoing-requests', label: 'Ongoing Requests', icon: Clock },
-        { id: 'completed-requests', label: 'Completed Request', icon: CheckCircle2 },
-        { id: 'signed-contracts', label: 'Signed Contract', icon: ShieldCheck },
+        // { id: 'ongoing-requests', label: 'Ongoing Requests', icon: Clock },
+        // { id: 'completed-requests', label: 'Completed Request', icon: CheckCircle2 },
+        // { id: 'signed-contracts', label: 'Signed Contract', icon: ShieldCheck },
         { id: 'invoices', label: 'Invoices', icon: Receipt },
         { id: 'contracts', label: 'Contracts', icon: FileText },
         { id: 'attestations', label: 'Attestations Fiscales', icon: History },
@@ -228,10 +230,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
 
                         <div className="flex items-center gap-3">
+                            {/* Notification bell hidden for now
                             <button className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all relative">
                                 <Bell size={20} />
                                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
                             </button>
+                            */}
 
                             <div className="h-8 w-px bg-slate-200 mx-1" />
 
@@ -1378,13 +1382,13 @@ Team Bloom`;
                                             </a>
                                         )}
 
-                                        {choice.zoom_meeting_link && (
+                                        {choice.interview_date && (
                                             <a
-                                                href={choice.zoom_meeting_link}
+                                                href={interviewRoomUrl(choice.id)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95"
-                                                title="Join Zoom Meeting"
+                                                title="Join video interview"
                                             >
                                                 <Video size={16} />
                                             </a>
@@ -1466,16 +1470,16 @@ const ActiveRequestChoicesCell: React.FC<{
                                     <ExternalLink size={14} />
                                 </a>
                             )}
-                            {choice.zoom_meeting_link && (
+                            {choice.interview_date && (
                                 <a
-                                    href={choice.zoom_meeting_link}
+                                    href={interviewRoomUrl(choice.id)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="p-1.5 text-blue-500 bg-blue-50 rounded-lg hover:bg-blue-500 hover:text-white transition-colors"
-                                    title="Join Zoom Meeting"
+                                    title="Join video interview"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        window.open(choice.zoom_meeting_link!, '_blank');
+                                        window.open(interviewRoomUrl(choice.id), '_blank');
                                     }}
                                 >
                                     <Video size={14} />
@@ -1630,6 +1634,15 @@ const PendingSignatureView = ({ searchQuery, onSearchChange }: { searchQuery: st
 };
 
 const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: string; onSearchChange: (val: string) => void }) => {
+    const { language } = useLanguage();
+    const copyDetails = (req: any) => {
+        navigator.clipboard.writeText(buildRequestDetailsText(req, language === 'fr'));
+        toast.success(language === 'fr' ? 'Détails copiés !' : 'Details copied!');
+    };
+    const copyMatchLink = (req: any) => {
+        navigator.clipboard.writeText(`${window.location.origin}/match/${req.id}`);
+        toast.success(language === 'fr' ? 'Lien copié !' : 'Link copied!');
+    };
     const [requests, setRequests] = useState<import('../services/api').ParentRequest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -1641,7 +1654,6 @@ const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: stri
     const [requestToDelete, setRequestToDelete] = useState<number | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [proposingFor, setProposingFor] = useState<import('../services/api').ParentRequest | null>(null);
-    const [viewingPicks, setViewingPicks] = useState<import('../services/api').ParentRequest | null>(null);
 
     const fetchActiveRequests = async () => {
         setIsLoading(true);
@@ -1786,102 +1798,85 @@ const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: stri
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto min-h-[500px]">
-                    <table className="w-full text-left table-fixed min-w-[1000px]">
-                        <thead>
-                            <tr className="bg-slate-50/50 border-b border-slate-200">
-                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[7%]">ID</th>
-                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[34%]">Family</th>
-                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[16%]">Quote Validated</th>
-                                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[21%]">Matching Status</th>
-                                <th className="px-4 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-widest w-[22%]">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                            {isLoading && (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                                        <div className="flex items-center justify-center gap-3">
-                                            <Loader2 className="animate-spin" size={20} />
-                                            <span className="text-sm font-medium">Loading active requests...</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                            {!isLoading && error && (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-red-500">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <AlertCircle size={18} />
-                                            <span className="text-sm font-medium">{error}</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                            {!isLoading && !error && filteredRequests.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">
-                                        No active requests found.
-                                    </td>
-                                </tr>
-                            )}
-                            {!isLoading && !error && paginatedRequests.map((req) => (
-                                <tr key={req.id} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="px-4 py-4 font-bold text-slate-900 align-top">#{req.id}</td>
-                                    <td className="px-4 py-4 align-top">
-                                        <div className="flex flex-col min-w-[150px]">
-                                            <span className="font-bold text-slate-800">{req.user?.first_name} {req.user?.last_name}</span>
-                                            <span className="text-xs text-slate-400">{req.user?.email}</span>
-                                            <div className="flex items-start gap-1 mt-1 text-[10px] text-slate-500 max-w-[200px]">
-                                                <MapPin size={10} className="mt-0.5 shrink-0" />
-                                                <span className="leading-tight">{req.parent_address}</span>
-                                            </div>
-                                        </div>
-                                    </td>
+            <div className="space-y-4 min-h-[400px]">
+                {isLoading && (
+                    <div className="flex items-center justify-center gap-3 py-16 text-slate-400">
+                        <Loader2 className="animate-spin" size={20} />
+                        <span className="text-sm font-medium">Loading requests in matching...</span>
+                    </div>
+                )}
+                {!isLoading && error && (
+                    <div className="flex items-center justify-center gap-2 py-16 text-red-500">
+                        <AlertCircle size={18} />
+                        <span className="text-sm font-medium">{error}</span>
+                    </div>
+                )}
+                {!isLoading && !error && filteredRequests.length === 0 && (
+                    <div className="py-16 text-center text-slate-400 text-sm font-medium">No requests in matching.</div>
+                )}
 
-                                    <td className="px-4 py-4 align-top text-sm text-slate-500">
-                                        {formatDateDMY(req.created_at)}
-                                    </td>
-                                    <td className="px-4 py-4 align-top">
-                                        {(() => {
-                                            const choices = req.choices ?? [];
-                                            const selectedCount = choices.filter((c: any) => c.status === 'selected').length;
-                                            if (choices.length === 0) {
-                                                return <span className="inline-block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100">Awaiting proposal</span>;
-                                            }
-                                            if (selectedCount > 0) {
-                                                return <span className="inline-block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">{selectedCount} selected by family</span>;
-                                            }
-                                            return <span className="inline-block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">Proposed — awaiting family</span>;
-                                        })()}
-                                    </td>
-                                    <td className="px-4 py-4 text-right align-top">
-                                        <div className="flex items-center justify-end gap-2">
-                                            {(req.choices?.length ?? 0) > 0 && (
-                                                <button
-                                                    onClick={() => setViewingPicks(req)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all"
-                                                    title="View candidates & interviews"
-                                                >
-                                                    <Eye size={14} />
-                                                    View
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={() => setProposingFor(req)}
-                                                className="inline-flex items-center gap-2 px-4 py-2 bg-brand-accent text-white text-xs font-bold rounded-xl hover:bg-[#66B2AC] transition-all shadow-sm shadow-brand-accent/20"
-                                            >
-                                                <Users size={14} />
-                                                {(req.choices?.length ?? 0) > 0 ? 'Re-propose' : 'Propose candidates'}
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                {!isLoading && !error && paginatedRequests.map((req) => {
+                    const choices = req.choices ?? [];
+                    const selectedCount = choices.filter((c: any) => c.status === 'selected').length;
+                    const hasChoices = choices.length > 0;
+                    const statusBadge = !hasChoices
+                        ? <span className="inline-block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100">Awaiting proposal</span>
+                        : selectedCount > 0
+                            ? <span className="inline-block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">{selectedCount} selected by family</span>
+                            : <span className="inline-block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">Proposed — awaiting family</span>;
+                    return (
+                        <div key={req.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6">
+                            {/* Header */}
+                            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2.5">
+                                        <span className="text-sm font-bold text-slate-400">#{req.id}</span>
+                                        <span className="text-lg font-bold text-slate-800">{req.user?.first_name} {req.user?.last_name}</span>
+                                        {statusBadge}
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-1">{req.user?.email}</p>
+                                    <div className="flex items-start gap-1.5 mt-1 text-xs text-slate-500">
+                                        <MapPin size={12} className="mt-0.5 shrink-0" />
+                                        <span className="leading-tight">{req.parent_address}</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 mt-1.5">Quote validated: {formatDateDMY(req.created_at)}</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                    <button
+                                        onClick={() => copyDetails(req)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all"
+                                        title="Copy request details to share with babysitters"
+                                    >
+                                        <ClipboardList size={14} /> Copy details
+                                    </button>
+                                    {hasChoices && (
+                                        <button
+                                            onClick={() => copyMatchLink(req)}
+                                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all"
+                                            title="Copy the candidate-selection link sent to the family"
+                                        >
+                                            <LinkIcon size={14} /> Copy link
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setProposingFor(req)}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-brand-accent text-white text-xs font-bold rounded-xl hover:bg-[#66B2AC] transition-all shadow-sm shadow-brand-accent/20"
+                                    >
+                                        <Users size={14} /> {hasChoices ? 'Re-propose' : 'Propose candidates'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Inline candidates & interviews */}
+                            {hasChoices && (
+                                <div className="mt-5 pt-5 border-t border-slate-100">
+                                    <MatchPicksContent request={req} onUpdated={fetchActiveRequests} />
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+
                 <Pagination
                     totalItems={filteredRequests.length}
                     itemsPerPage={itemsPerPage}
@@ -1896,16 +1891,6 @@ const ActiveRequestsView = ({ searchQuery, onSearchChange }: { searchQuery: stri
                         request={proposingFor}
                         onClose={() => setProposingFor(null)}
                         onProposed={fetchActiveRequests}
-                    />
-                )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-                {viewingPicks && (
-                    <MatchPicksModal
-                        request={viewingPicks}
-                        onClose={() => setViewingPicks(null)}
-                        onUpdated={fetchActiveRequests}
                     />
                 )}
             </AnimatePresence>

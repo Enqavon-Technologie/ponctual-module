@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api, User, Invoice, Attestation } from '../services/api';
+import { interviewRoomUrl } from '../utils/interview';
 import { InvoicePaymentModal } from './InvoicePaymentModal';
 import { AddCardModal } from './AddCardModal';
 import { StatusBadge } from './StatusBadge';
@@ -604,7 +605,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                                           <span className="text-[9px] sm:text-[10px] font-bold text-brand-blue uppercase tracking-wider">
                                             {choice.interview_date
                                               ? new Date(choice.interview_date).toLocaleDateString('en-GB')
-                                              : '--'} @ {choice.interview_time?.substring(0, 5)}
+                                              : '--'} @ {choice.interview_time?.substring(0, 5)} ({language === 'fr' ? 'heure de Paris' : 'Paris time'})
                                           </span>
                                         </div>
                                         <div className="flex flex-wrap items-center gap-3">
@@ -638,9 +639,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                                       <>
                                         {Number(choice.final_choice) !== 2 && (
                                           <>
-                                            {choice.zoom_meeting_link ? (
+                                            {choice.interview_date ? (
                                               <a
-                                                href={choice.zoom_meeting_link}
+                                                href={interviewRoomUrl(choice.id)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="flex-1 sm:flex-none px-4 sm:px-6 py-3 sm:py-3.5 bg-brand-accent/10 text-brand-accent font-bold rounded-xl sm:rounded-2xl hover:bg-brand-accent hover:text-white hover:-translate-y-0.5 active:scale-95 transition-all shadow-sm hover:shadow-brand-accent/20 text-[10px] sm:text-xs whitespace-nowrap flex items-center justify-center gap-2"
