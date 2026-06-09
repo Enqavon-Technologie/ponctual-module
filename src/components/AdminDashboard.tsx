@@ -120,9 +120,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         // { id: 'ongoing-requests', label: 'Ongoing Requests', icon: Clock },
         // { id: 'completed-requests', label: 'Completed Request', icon: CheckCircle2 },
         // { id: 'signed-contracts', label: 'Signed Contract', icon: ShieldCheck },
-        { id: 'invoices', label: 'Invoices', icon: Receipt },
-        { id: 'contracts', label: 'Contracts', icon: FileText },
-        { id: 'attestations', label: 'Attestations Fiscales', icon: History },
+        // Invoices, Contracts and Attestations now live on the parent profile.
+        // { id: 'invoices', label: 'Invoices', icon: Receipt },
+        // { id: 'contracts', label: 'Contracts', icon: FileText },
+        // { id: 'attestations', label: 'Attestations Fiscales', icon: History },
         { id: 'users', label: 'All Parents', icon: Users },
     ];
 
@@ -3545,7 +3546,6 @@ const UsersView = ({ onViewUser, searchQuery, onSearchChange }: { onViewUser: (i
                                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[20%]">Name</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[20%]">Email</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[12%]">SMG Num</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[10%]">Requests</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[13%]">Phone</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-[15%]">Address</th>
                                 <th className="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-widest w-[10%]">Actions</th>
@@ -3558,7 +3558,6 @@ const UsersView = ({ onViewUser, searchQuery, onSearchChange }: { onViewUser: (i
                                         <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-32" /></td>
                                         <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-48" /></td>
                                         <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-24" /></td>
-                                        <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-12" /></td>
                                         <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-32" /></td>
                                         <td className="px-6 py-4"><div className="h-4 bg-slate-100 rounded w-48" /></td>
                                         <td className="px-6 py-4 text-right"><div className="h-8 bg-slate-100 rounded-xl w-24 ml-auto" /></td>
@@ -3566,7 +3565,7 @@ const UsersView = ({ onViewUser, searchQuery, onSearchChange }: { onViewUser: (i
                                 ))
                             ) : filteredUsers.length > 0 ? (
                                 paginatedUsers.map((user) => (
-                                    <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <tr key={user.id} onClick={() => onViewUser(user.id)} className="hover:bg-slate-50/50 transition-colors group cursor-pointer">
                                         <td className="px-6 py-4 align-top">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
@@ -3577,31 +3576,19 @@ const UsersView = ({ onViewUser, searchQuery, onSearchChange }: { onViewUser: (i
                                         </td>
                                         <td className="px-6 py-4 text-slate-600 font-medium text-sm align-top">{user.email || 'N/A'}</td>
                                         <td className="px-6 py-4 text-slate-600 font-medium text-sm align-top">{user.cmg_num || 'N/A'}</td>
-                                        <td className="px-6 py-4 align-top">
-                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">
-                                                {user.parent_requests_count || 0}
-                                            </span>
-                                        </td>
                                         <td className="px-6 py-4 text-slate-600 font-medium text-sm align-top">{user.user_phone || 'N/A'}</td>
                                         <td className="px-6 py-4 text-slate-500 text-xs max-w-xs truncate align-top">{user.user_address || 'N/A'}</td>
                                         <td className="px-6 py-4 text-right align-top">
                                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                                 <button
-                                                    onClick={() => onViewUser(user.id)}
-                                                    className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-all"
-                                                    title="View Details"
-                                                >
-                                                    <Eye size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => { setSelectedUser(user); setIsEditModalOpen(true); }}
+                                                    onClick={(e) => { e.stopPropagation(); setSelectedUser(user); setIsEditModalOpen(true); }}
                                                     className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-all"
                                                     title="Edit User"
                                                 >
                                                     <Edit2 size={18} />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDeleteUser(user)}
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
                                                     disabled={isDeleting === user.id}
                                                     className={`p-2 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-xl transition-all ${isDeleting === user.id ? 'animate-pulse' : ''}`}
                                                     title="Delete User"
@@ -3614,7 +3601,7 @@ const UsersView = ({ onViewUser, searchQuery, onSearchChange }: { onViewUser: (i
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-medium italic">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-medium italic">
                                         No users found matching your search.
                                     </td>
                                 </tr>
@@ -3669,6 +3656,49 @@ const UserDetailsView = ({ id, onBack }: { id: number; onBack: () => void }) => 
         };
         fetchDetails();
     }, [id]);
+
+    const ageFromDob = (dob?: string): number | null => {
+        if (!dob) return null;
+        const d = new Date(dob);
+        if (Number.isNaN(d.getTime())) return null;
+        const now = new Date();
+        let a = now.getFullYear() - d.getFullYear();
+        const m = now.getMonth() - d.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
+        return a >= 0 ? a : null;
+    };
+
+    // Unique children across the parent's requests (deduped by birth date).
+    const childrenList = (() => {
+        const all = (user?.parent_requests ?? []).flatMap((r: any) => r.children ?? []);
+        const seen = new Set<string>();
+        const out: any[] = [];
+        for (const c of all) {
+            const key = c.child_dob || JSON.stringify(c);
+            if (!seen.has(key)) { seen.add(key); out.push(c); }
+        }
+        return out;
+    })();
+
+    const contracts: any[] = (user as any)?.contracts ?? [];
+    const invoices: any[] = (user as any)?.invoices ?? [];
+    const attestations: any[] = (user as any)?.attestations ?? [];
+
+    const contractStatus = (c: any) => {
+        if (c.babysitter_signed_at) return { label: 'Completed', cls: 'bg-emerald-50 text-emerald-600' };
+        if (Number(c.status) === 1) return { label: 'Family signed', cls: 'bg-blue-50 text-blue-600' };
+        if (Number(c.status) === 2) return { label: 'Rejected', cls: 'bg-red-50 text-red-600' };
+        return { label: 'Pending', cls: 'bg-amber-50 text-amber-600' };
+    };
+
+    const downloadAttestation = (fileName: string) => {
+        const link = document.createElement('a');
+        link.href = `/certificates/${fileName}`;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+    };
 
     if (loading) {
         return (
@@ -3727,8 +3757,8 @@ const UserDetailsView = ({ id, onBack }: { id: number; onBack: () => void }) => 
                             <Shield size={18} className="text-emerald-500" />
                             <div>
                                 <p className="text-[10px] font-bold text-emerald-600/60 uppercase">CMG</p>
-                                <p className="text-lg font-black text-emerald-600 tracking-wider">
-                                    {user?.cmg_num || 'PENDING'}
+                                <p className={`text-lg font-black tracking-wider ${user?.cmg_num ? 'text-emerald-600' : 'text-slate-300'}`}>
+                                    {user?.cmg_num || '—'}
                                 </p>
                             </div>
                         </div>
@@ -3738,19 +3768,39 @@ const UserDetailsView = ({ id, onBack }: { id: number; onBack: () => void }) => 
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Quick Stats</label>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Requests</p>
-                                <p className="text-xl font-black text-slate-900">{user?.parent_requests?.length || 0}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Completed requests</p>
+                                <p className="text-xl font-black text-slate-900">{contracts.filter((c: any) => c.babysitter_signed_at).length}</p>
                             </div>
                             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Role</p>
-                                <p className="text-xl font-black text-slate-900">Parent</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Children</p>
+                                <p className="text-xl font-black text-slate-900">{childrenList.length}</p>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                {/* Children — birthdays + ages */}
+                {childrenList.length > 0 && (
+                    <div className="px-8 pb-8 pt-0 -mt-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Children</label>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                            {childrenList.map((c: any, i: number) => {
+                                const age = ageFromDob(c.child_dob);
+                                return (
+                                    <div key={i} className="inline-flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+                                        <Baby size={14} className="text-brand-accent" />
+                                        <span className="text-xs font-bold text-slate-700">{formatDateDMY(c.child_dob)}</span>
+                                        {age !== null && <span className="text-[10px] font-bold text-slate-400">· {age} {age <= 1 ? 'yr' : 'yrs'}</span>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Requests Table */}
+            {/* Parent Requests — hidden for now */}
+            {false && (
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                     <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -3795,6 +3845,118 @@ const UserDetailsView = ({ id, onBack }: { id: number; onBack: () => void }) => 
                                         No requests found for this user.
                                     </td>
                                 </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            )}
+
+            {/* Contracts */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100">
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <FileText size={20} className="text-slate-400" /> Contracts
+                    </h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[700px]">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-200">
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">ID</th>
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">Babysitter</th>
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">Period</th>
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {contracts.map((c: any) => {
+                                const st = contractStatus(c);
+                                return (
+                                    <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="px-6 py-4 text-sm font-black text-slate-900">#{c.id}</td>
+                                        <td className="px-6 py-4 text-sm font-semibold text-slate-700">{c.choice ? `${c.choice.babysitter_first_name ?? ''} ${c.choice.babysitter_last_name ?? ''}`.trim() || '—' : '—'}</td>
+                                        <td className="px-6 py-4 text-xs text-slate-500">{formatDateDMY(c.start_date)} → {formatDateDMY(c.end_date)}</td>
+                                        <td className="px-6 py-4"><span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${st.cls}`}>{st.label}</span></td>
+                                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{c.hourly_rate}€/hr</td>
+                                    </tr>
+                                );
+                            })}
+                            {contracts.length === 0 && (
+                                <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-400 font-medium italic">No contracts yet.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Invoices */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100">
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <Receipt size={20} className="text-slate-400" /> Invoices
+                    </h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[700px]">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-200">
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">Invoice</th>
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">Amount</th>
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">Due date</th>
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">Method</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {invoices.map((inv: any) => (
+                                <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="px-6 py-4 text-sm font-bold text-slate-800">{inv.invoice_num}</td>
+                                    <td className="px-6 py-4 text-sm font-bold text-slate-700">{Number(inv.amount || 0).toFixed(2)} €</td>
+                                    <td className="px-6 py-4"><span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${inv.payment_status === 'Paid' ? 'bg-emerald-50 text-emerald-600' : inv.payment_status === 'Pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>{inv.payment_status}</span></td>
+                                    <td className="px-6 py-4 text-xs text-slate-500">{formatDateDMY(inv.due_date)}</td>
+                                    <td className="px-6 py-4 text-xs text-slate-500 capitalize">{inv.payment_method || '—'}</td>
+                                </tr>
+                            ))}
+                            {invoices.length === 0 && (
+                                <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-400 font-medium italic">No invoices yet.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Attestations Fiscales */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100">
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <History size={20} className="text-slate-400" /> Attestations Fiscales
+                    </h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[500px]">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-200">
+                                <th className="px-6 py-3 text-xs font-bold text-slate-400 uppercase tracking-widest">Year</th>
+                                <th className="px-6 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-widest">Document</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {attestations.map((a: any) => (
+                                <tr key={a.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="px-6 py-4 text-sm font-black text-slate-900">{a.year}</td>
+                                    <td className="px-6 py-4 text-right">
+                                        {a.file ? (
+                                            <button onClick={() => downloadAttestation(a.file)} className="inline-flex items-center gap-1.5 px-3 py-2 bg-brand-accent/10 text-brand-accent text-xs font-bold rounded-xl hover:bg-brand-accent hover:text-white transition-all">
+                                                <Download size={14} /> Download
+                                            </button>
+                                        ) : <span className="text-xs text-slate-400 italic">Pending</span>}
+                                    </td>
+                                </tr>
+                            ))}
+                            {attestations.length === 0 && (
+                                <tr><td colSpan={2} className="px-6 py-10 text-center text-slate-400 font-medium italic">No attestations yet — available once the fiscal year is processed.</td></tr>
                             )}
                         </tbody>
                     </table>
